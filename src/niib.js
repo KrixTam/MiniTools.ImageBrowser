@@ -1,5 +1,51 @@
 "use strict";
 
+function rgbToHex(r, g, b) {
+    if (r > 255 || g > 255 || b > 255)
+        throw "RGB值异常";
+    return ((r << 16) | (g << 8) | b).toString(16);
+};
+
+function fallbackCopyTextToClipboard (text) {
+    var textArea = document.createElement("textarea");
+    var result = false;
+    textArea.value = text;
+
+    // Avoid scrolling to bottom
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.position = "fixed";
+
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+        var successful = document.execCommand('copy');
+        result = successful ? true : false;
+        var msg = successful ? 'successful' : 'unsuccessful';
+        console.log('Fallback: Copying text command was ' + msg);
+    } catch (err) {
+        console.error('Fallback: Oops, unable to copy', err);
+    }
+
+    document.body.removeChild(textArea);
+    return result;
+};
+
+function copyTextToClipboard (text) {
+    if (!navigator.clipboard) {
+        return fallbackCopyTextToClipboard(text);
+    }
+    navigator.clipboard.writeText(text).then(function () {
+        console.log('Async: Copying to clipboard was successful!');
+        return true;
+    }, function (err) {
+        console.error('Async: Could not copy text: ', err);
+        return false;
+    });
+};
+
 var MTLogger = function (desc) {
     var self = this;
     self._desc = desc;
@@ -41,14 +87,69 @@ var err_codes = {
 
 var niibLogger = new MTLogger(err_codes);
 
-var niib = function (container_id, options) {
+function generateButton (container, label, callback) {
+    var button = document.createElement("button");
+    button.innerHTML = label;
+    button.onclick = callback;
+    container.appendChild(button);
+    return button;
+};
+
+function generateLabel (container, default_label, class_name) {
+    var label = document.createElement("Label");
+    label.innerHTML = default_label;
+    label.className = class_name;
+    container.appendChild(label);
+    return label;
+};
+
+var MTImageBrowser = function (container_id, options) {
     var self = this;
     var container = document.getElementById(container_id);
     var canvas = document.createElement("canvas");
     var input = document.createElement("input");
-    // TODO：input待隐藏并提供API进行文件浏览器操作
     input.type = "file";
     input.accept = "image/*";
+    input.style.visibility = "hidden";
+    input.onchange = function () {
+        self.load();
+    };
+    var menus = document.createElement("div");
+    menus.className = "mtib_menu";
+    var button_01 = generateButton(menus, "打开", function () {input.click();});
+    var button_02 = generateButton(menus, "清除", function () {self.clear();});
+    var button_03 = generateButton(menus, "重载", function () {
+        self.clear();
+        self.load();
+    });
+    var color_div = document.createElement("div");
+    color_div.className = "mtib_color_block";
+    color_div.innerHTML = "#FFFFFF"
+    menus.appendChild(color_div);
+    var label_x = generateLabel(menus, "x: ", "mtib_pos_label");
+    var label_y = generateLabel(menus, "y: ", "mtib_pos_label");
+    canvas.onmousemove = function(e) {
+        if (self._loaded) {
+            var zero = self._rulerWidth + self._rulerGap;
+            var rect = canvas.getBoundingClientRect();
+            var x = e.clientX - rect.left;
+            var y = e.clientY - rect.top;
+            var x_pos = x - zero;
+            var y_pos = y - zero;
+            if (x_pos >= 0 && y_pos >= 0) {
+                label_x.innerHTML = "x: " + x_pos;
+                label_y.innerHTML = "y: " + y_pos;
+                var p = self._ctx.getImageData(x * self._pixelRatio, y * self._pixelRatio, 1, 1).data;
+                var hex = "#" + ("000000" + rgbToHex(p[0], p[1], p[2])).slice(-6);
+                color_div.style.backgroundColor = hex;
+                var hex_invert = "#" + ("000000" + rgbToHex(255 - p[0], 255 - p[1], 255 - p[2])).slice(-6);
+                color_div.style.color = hex_invert;
+                color_div.innerHTML = hex;
+                console.log(hex);
+            }
+        };
+    };
+    container.appendChild(menus);
     container.appendChild(canvas);
     container.appendChild(input);
     self._rulerWidth = 10;
@@ -59,10 +160,22 @@ var niib = function (container_id, options) {
     self._pixelRatio = window.devicePixelRatio;
     self._ctx = self._canvas.getContext("2d");
     self._loaded = false;
+    self.setSize(100, 50);
+};
+
+MTImageBrowser.prototype.setSize = function (width, height) {
+    var self = this;
+    var menu_min_width = 460;
+    var container_width = (width > menu_min_width) ? width : menu_min_width;
+    var container_height = height + 40;
+    self._container.style.width = container_width + "px";
+    self._container.style.height = container_height + "px";
+    self._canvas.style.width = width + "px";
+    self._canvas.style.height = height + "px";
 };
 
 // 加载图片
-niib.prototype.load = function (img_file) {
+MTImageBrowser.prototype.load = function () {
     var self = this;
     if (typeof window.FileReader !== "function") {
         niibLogger.warn("0001");
@@ -84,10 +197,7 @@ niib.prototype.load = function (img_file) {
                 var width = img.width + self._rulerWidth + self._rulerGap, height = img.height + self._rulerWidth + self._rulerGap;
                 self._canvas.width = width * self._pixelRatio;
                 self._canvas.height = height * self._pixelRatio;
-                self._container.style.width = width + 'px';
-                self._container.style.height = height + 'px';
-                self._canvas.style.width = width + 'px';
-                self._canvas.style.height = height + 'px';
+                self.setSize(width, height);
                 self._ctx.scale(self._pixelRatio, self._pixelRatio);
                 self._ctx.drawImage(img, self._rulerWidth + self._rulerGap, self._rulerWidth + self._rulerGap);
                 url.revokeObjectURL(src);
@@ -110,14 +220,14 @@ niib.prototype.load = function (img_file) {
 };
 
 // 清空画布
-niib.prototype.clear = function () {
+MTImageBrowser.prototype.clear = function () {
     var self = this;
     self._ctx.clearRect(0, 0, self._canvas.width, self._canvas.height);
     self._loaded = false;
 };
 
 // 画刻度线
-niib.prototype.drawTickMarks = function (direction, longer, width, spacing) {
+MTImageBrowser.prototype.drawTickMarks = function (direction, longer, width, spacing) {
     var self = this, interval = width / spacing, pos = 5;
     if (longer) {
         pos = 0;
@@ -141,7 +251,7 @@ niib.prototype.drawTickMarks = function (direction, longer, width, spacing) {
 };
 
 // 画刻度线标签
-niib.prototype.drawTickMarkLabels = function (direction, width, spacing) {
+MTImageBrowser.prototype.drawTickMarkLabels = function (direction, width, spacing) {
     var self = this, interval = width / spacing, label, x, y;
     if ("H" == direction) {
         y = self._rulerGap + self._rulerWidth / 2 - 2;
