@@ -143,11 +143,11 @@ var MTImageBrowser = function (container_id, options) {
     var menus = document.createElement("div");
     menus.className = "mtib_menu";
     var button_01 = generateButton(menus, "打开", function () {input.click();});
-    var button_02 = generateButton(menus, "清除", function () {self.clear();});
-    var button_03 = generateButton(menus, "重载", function () {
+    var button_02 = generateButton(menus, "重置", function () {
         self.clear();
         self.load();
     });
+    var button_03 = generateButton(menus, "保存", function () {self.download();});
     var checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     menus.appendChild(checkbox);
@@ -201,6 +201,10 @@ var MTImageBrowser = function (container_id, options) {
     container.appendChild(menus);
     container.appendChild(canvas);
     container.appendChild(input);
+    var download_link = document.createElement('a');
+    download_link.setAttribute('download', 'image_snapped.png');
+    download_link.style.visibility = "hidden";
+    container.appendChild(download_link);
     self._max_x = 0;
     self._max_y = 0;
     self._rulerWidth = 10;
@@ -209,6 +213,7 @@ var MTImageBrowser = function (container_id, options) {
     self._container = container;
     self._canvas = canvas;
     self._input = input;
+    self._download_link = download_link;
     self._pixelRatio = window.devicePixelRatio;
     self._ctx = self._canvas.getContext("2d");
     self._loaded = false;
@@ -349,4 +354,14 @@ MTImageBrowser.prototype.drawGuideLine = function (x, y) {
     self._ctx.fillStyle = fill_color;
     self._guidelines["x"].push(x);
     self._guidelines["y"].push(y);
+};
+
+// 保存图片
+MTImageBrowser.prototype.download = function () {
+    var self = this;
+    self._canvas.toBlob(function (blob) {
+        var url = URL.createObjectURL(blob);
+        self._download_link.setAttribute('href', url);
+        self._download_link.click();
+    });
 };
