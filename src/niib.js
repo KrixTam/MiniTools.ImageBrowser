@@ -23,11 +23,14 @@ function fallbackCopyTextToClipboard (text) {
     try {
         var successful = document.execCommand('copy');
         result = successful ? true : false;
-        var msg = successful ? 'successful' : 'unsuccessful';
-        console.log('Fallback: Copying text command was ' + msg);
+        if (result) {
+            niibLogger.warn("0005");
+        } else {
+            niibLogger.warn("0006");
+        };
     } catch (err) {
-        console.error('Fallback: Oops, unable to copy', err);
-    }
+        niibLogger.warn("0006", {"异常信息": err});
+    };
 
     document.body.removeChild(textArea);
     return result;
@@ -38,10 +41,10 @@ function copyTextToClipboard (text) {
         return fallbackCopyTextToClipboard(text);
     }
     navigator.clipboard.writeText(text).then(function () {
-        console.log('Async: Copying to clipboard was successful!');
+        niibLogger.warn("0007");
         return true;
     }, function (err) {
-        console.error('Async: Could not copy text: ', err);
+        niibLogger.warn("0008", {"异常信息": err});
         return false;
     });
 };
@@ -51,17 +54,23 @@ var MTLogger = function (desc) {
     self._desc = desc;
 };
 
-MTLogger.prototype.info = function (err_id) {
+MTLogger.prototype.info = function (err_id, err_infos = {}) {
     var self = this;
     if (err_id in self._desc) {
         console.log("[" + err_id + "] " + self._desc[err_id]["desc"]);
+        if (Object.keys(err_infos).length > 0) {
+            console.log(err_infos);
+        };
     };
 };
 
-MTLogger.prototype.warn = function (err_id) {
+MTLogger.prototype.warn = function (err_id, err_infos = {}) {
     var self = this;
     if (err_id in self._desc) {
         console.log("[" + err_id + "] " + self._desc[err_id]["desc"]);
+        if (Object.keys(err_infos).length > 0) {
+            console.log(err_infos);
+        };
         alert(self._desc[err_id]["msg"]);
     };
 };
@@ -82,6 +91,22 @@ var err_codes = {
     "0004": {
         "desc": "此浏览器不支持“URL”，建议使用最新版本的浏览器浏览本网页。",
         "msg": "暂不支持此浏览器，请使用最新版本的浏览器浏览本网页。"
+    },
+    "0005": {
+        "desc": "Fallback：取色成功，信息已拷贝到剪贴板。",
+        "msg": "取色成功，信息已拷贝到剪贴板。"
+    },
+    "0006": {
+        "desc": "Fallback：取色成功，信息拷贝到剪贴板失败。",
+        "msg": "取色成功，信息拷贝到剪贴板时出现异常。"
+    },
+    "0007": {
+        "desc": "Async：取色成功，信息已拷贝到剪贴板。",
+        "msg": "取色成功，信息已拷贝到剪贴板。"
+    },
+    "0008": {
+        "desc": "Async：取色成功，信息拷贝到剪贴板失败。",
+        "msg": "取色成功，信息拷贝到剪贴板时出现异常。"
     },
 };
 
@@ -128,6 +153,9 @@ var MTImageBrowser = function (container_id, options) {
     menus.appendChild(color_div);
     var label_x = generateLabel(menus, "x: ", "mtib_pos_label");
     var label_y = generateLabel(menus, "y: ", "mtib_pos_label");
+    canvas.onclick = function(e) {
+        copyTextToClipboard(color_div.innerHTML);
+    };
     canvas.onmousemove = function(e) {
         if (self._loaded) {
             var zero = self._rulerWidth + self._rulerGap;
