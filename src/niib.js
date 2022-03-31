@@ -130,6 +130,7 @@ function generateLabel (container, default_label, class_name) {
 
 var MTImageBrowser = function (container_id, options) {
     var self = this;
+    self._guidelines = {"x": [], "y": []};
     var container = document.getElementById(container_id);
     var canvas = document.createElement("canvas");
     var input = document.createElement("input");
@@ -147,24 +148,42 @@ var MTImageBrowser = function (container_id, options) {
         self.clear();
         self.load();
     });
+    var checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    menus.appendChild(checkbox);
     var color_div = document.createElement("div");
     color_div.className = "mtib_color_block";
     color_div.innerHTML = "#FFFFFF"
     menus.appendChild(color_div);
     var label_x = generateLabel(menus, "x: ", "mtib_pos_label");
     var label_y = generateLabel(menus, "y: ", "mtib_pos_label");
-    canvas.onclick = function(e) {
-        copyTextToClipboard(color_div.innerHTML);
-    };
-    canvas.onmousemove = function(e) {
+    canvas.onclick = function (e) {
         if (self._loaded) {
-            var zero = self._rulerWidth + self._rulerGap;
+            var x_pos = parseInt(label_x.innerHTML.replace("x: ", ""));
+            var y_pos = parseInt(label_y.innerHTML.replace("y: ", ""));
+            var max_x = self._max_x - self._zero * 2;
+            var max_y = self._max_y - self._zero * 2;
+            if (x_pos >= 0 && y_pos >= 0 && x_pos <= max_x && y_pos <= max_y) {
+                if (checkbox.checked) {
+                    copyTextToClipboard(color_div.innerHTML);
+                } else {
+                    var x = x_pos + self._zero;
+                    var y = y_pos + self._zero;
+                    self.drawGuideLine(x, y);
+                };
+            };
+        };
+    };
+    canvas.onmousemove = function (e) {
+        if (self._loaded) {
             var rect = canvas.getBoundingClientRect();
             var x = e.clientX - rect.left;
             var y = e.clientY - rect.top;
-            var x_pos = x - zero;
-            var y_pos = y - zero;
-            if (x_pos >= 0 && y_pos >= 0) {
+            var x_pos = x - self._zero;
+            var y_pos = y - self._zero;
+            var max_x = self._max_x - self._zero * 2;
+            var max_y = self._max_y - self._zero * 2;
+            if (x_pos >= 0 && y_pos >= 0 && x_pos <= max_x && y_pos <= max_y) {
                 label_x.innerHTML = "x: " + x_pos;
                 label_y.innerHTML = "y: " + y_pos;
                 var p = self._ctx.getImageData(x * self._pixelRatio, y * self._pixelRatio, 1, 1).data;
@@ -173,15 +192,20 @@ var MTImageBrowser = function (container_id, options) {
                 var hex_invert = "#" + ("000000" + rgbToHex(255 - p[0], 255 - p[1], 255 - p[2])).slice(-6);
                 color_div.style.color = hex_invert;
                 color_div.innerHTML = hex;
-                console.log(hex);
-            }
+            } else {
+                label_x.innerHTML = "x: ";
+                label_y.innerHTML = "y: ";
+            };
         };
     };
     container.appendChild(menus);
     container.appendChild(canvas);
     container.appendChild(input);
+    self._max_x = 0;
+    self._max_y = 0;
     self._rulerWidth = 10;
     self._rulerGap = 5;
+    self._zero = self._rulerWidth + self._rulerGap;
     self._container = container;
     self._canvas = canvas;
     self._input = input;
@@ -193,13 +217,15 @@ var MTImageBrowser = function (container_id, options) {
 
 MTImageBrowser.prototype.setSize = function (width, height) {
     var self = this;
-    var menu_min_width = 460;
+    var menu_min_width = 500;
     var container_width = (width > menu_min_width) ? width : menu_min_width;
     var container_height = height + 40;
     self._container.style.width = container_width + "px";
     self._container.style.height = container_height + "px";
     self._canvas.style.width = width + "px";
     self._canvas.style.height = height + "px";
+    self._max_x = width;
+    self._max_y = height;
 };
 
 // 加载图片
@@ -222,24 +248,25 @@ MTImageBrowser.prototype.load = function () {
             img.src = src;
             img.onload = function() {
                 // 根据图片尺寸调整画布尺寸，并根据屏幕缩放比恢复画布清晰度
-                var width = img.width + self._rulerWidth + self._rulerGap, height = img.height + self._rulerWidth + self._rulerGap;
+                var width = img.width + self._zero * 2, height = img.height + self._zero * 2;
                 self._canvas.width = width * self._pixelRatio;
                 self._canvas.height = height * self._pixelRatio;
                 self.setSize(width, height);
                 self._ctx.scale(self._pixelRatio, self._pixelRatio);
-                self._ctx.drawImage(img, self._rulerWidth + self._rulerGap, self._rulerWidth + self._rulerGap);
+                self._ctx.drawImage(img, self._zero, self._zero);
                 url.revokeObjectURL(src);
                 self._loaded = true;
                 // 绘制标尺
                 self._ctx.lineWidth= 1;
                 self._ctx.strokeStyle = "#000";
+                self._ctx.fillStyle = "#000";
                 self._ctx.font = "8px Arial";
                 // 水平标尺
                 self.drawTickMarks("H", false, img.width, 5);
                 self.drawTickMarks("H", true, img.width, 50);
                 // 垂直标尺
-                self.drawTickMarks("V", false, img.width, 5);
-                self.drawTickMarks("V", true, img.width, 50);
+                self.drawTickMarks("V", false, img.height, 5);
+                self.drawTickMarks("V", true, img.height, 50);
             };
         } else {
             niibLogger.warn("0004");
@@ -252,6 +279,7 @@ MTImageBrowser.prototype.clear = function () {
     var self = this;
     self._ctx.clearRect(0, 0, self._canvas.width, self._canvas.height);
     self._loaded = false;
+    self._guidelines = {"x": [], "y": []};
 };
 
 // 画刻度线
@@ -264,15 +292,15 @@ MTImageBrowser.prototype.drawTickMarks = function (direction, longer, width, spa
     if ("H" == direction) {
         for (var i = 0; i <= interval; i++) {
             self._ctx.beginPath();
-            self._ctx.moveTo(self._rulerWidth + self._rulerGap + i * spacing, self._rulerWidth + self._rulerGap);
-            self._ctx.lineTo(self._rulerWidth + self._rulerGap + i * spacing, pos + self._rulerGap);
+            self._ctx.moveTo(self._zero + i * spacing, self._zero);
+            self._ctx.lineTo(self._zero + i * spacing, pos + self._rulerGap);
             self._ctx.stroke();
         };
     } else if ("V" == direction) {
         for (var i = 0; i <= interval; i++) {
             self._ctx.beginPath();
-            self._ctx.moveTo(self._rulerWidth + self._rulerGap, self._rulerWidth + self._rulerGap + i * spacing);
-            self._ctx.lineTo(pos + self._rulerGap, self._rulerWidth + self._rulerGap + i * spacing);
+            self._ctx.moveTo(self._zero, self._zero + i * spacing);
+            self._ctx.lineTo(pos + self._rulerGap, self._zero + i * spacing);
             self._ctx.stroke();
         };
     };
@@ -285,13 +313,13 @@ MTImageBrowser.prototype.drawTickMarkLabels = function (direction, width, spacin
         y = self._rulerGap + self._rulerWidth / 2 - 2;
         for (var i = 0; i <= interval; i++) {
             label = i * spacing;
-            x = self._rulerWidth + self._rulerGap + i * spacing + 1;
+            x = self._zero + i * spacing + 1;
             self._ctx.fillText(label + "", x, y);
         };
     } else if ("V" == direction) {
         y = self._rulerWidth + 2;
         self._ctx.save();
-        self._ctx.translate(self._rulerGap + self._rulerWidth, self._rulerGap + self._rulerWidth);
+        self._ctx.translate(self._zero, self._zero);
         self._ctx.rotate(Math.PI / 2);
         self._ctx.textAlign = "left";
         for (var i = 0; i <= interval; i++) {
@@ -301,4 +329,24 @@ MTImageBrowser.prototype.drawTickMarkLabels = function (direction, width, spacin
         };
         self._ctx.restore();
     };
+};
+
+// 画刻GuideLine
+MTImageBrowser.prototype.drawGuideLine = function (x, y) {
+    var self = this, stroke_color = self._ctx.strokeStyle, fill_color = self._ctx.fillStyle, offset = self._rulerGap + self._rulerWidth / 2 - 2;
+    self._ctx.strokeStyle = "#169FE6";
+    self._ctx.fillStyle = "#169FE6";
+    self._ctx.beginPath();
+    self._ctx.moveTo(x, self._zero);
+    self._ctx.lineTo(x, self._max_y - self._zero);
+    self._ctx.moveTo(self._zero, y);
+    self._ctx.lineTo(self._max_x - self._zero, y);
+    self._ctx.stroke();
+    // 画标签
+    self._ctx.fillText(x + "", x, self._max_y - self._zero + offset);
+    self._ctx.fillText(y + "", self._max_x - self._zero + 2, y);
+    self._ctx.strokeStyle = stroke_color;
+    self._ctx.fillStyle = fill_color;
+    self._guidelines["x"].push(x);
+    self._guidelines["y"].push(y);
 };
