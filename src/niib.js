@@ -167,9 +167,7 @@ var MTImageBrowser = function (container_id, options) {
                 if (checkbox.checked) {
                     copyTextToClipboard(color_div.innerHTML);
                 } else {
-                    var x = x_pos + self._zero;
-                    var y = y_pos + self._zero;
-                    self.drawGuideLine(x, y);
+                    self.drawGuideLine(x_pos, y_pos);
                 };
             };
         };
@@ -262,6 +260,7 @@ MTImageBrowser.prototype.load = function () {
                 url.revokeObjectURL(src);
                 self._loaded = true;
                 // 绘制标尺
+                var stroke_color = self._ctx.strokeStyle, fill_color = self._ctx.fillStyle;
                 self._ctx.lineWidth= 1;
                 self._ctx.strokeStyle = "#000";
                 self._ctx.fillStyle = "#000";
@@ -272,6 +271,26 @@ MTImageBrowser.prototype.load = function () {
                 // 垂直标尺
                 self.drawTickMarks("V", false, img.height, 5);
                 self.drawTickMarks("V", true, img.height, 50);
+                // 绘制右下角角标
+                var x_pos_rb = img.width + self._zero, y_pos_rb = img.height + self._zero, offset = self._rulerGap + self._rulerWidth / 2 - 2;
+                self._ctx.beginPath();
+                self._ctx.moveTo(x_pos_rb, y_pos_rb);
+                self._ctx.lineTo(x_pos_rb + self._rulerWidth, y_pos_rb);
+                self._ctx.stroke();
+                self._ctx.fillText(img.width + "", x_pos_rb + 2, self._max_y - self._rulerGap / 2 + 2);
+                self._ctx.beginPath();
+                self._ctx.moveTo(x_pos_rb, y_pos_rb);
+                self._ctx.lineTo(x_pos_rb, y_pos_rb + self._rulerWidth);
+                self._ctx.stroke();
+                self._ctx.save();
+                self._ctx.translate(self._zero, self._zero);
+                self._ctx.rotate(- Math.PI / 2);
+                self._ctx.textAlign = "left";
+                self._ctx.fillText(img.height + "", 2 - img.height, self._max_x - self._zero);
+                self._ctx.restore();
+                // 恢复现场
+                self._ctx.strokeStyle = stroke_color;
+                self._ctx.fillStyle = fill_color;
             };
         } else {
             niibLogger.warn("0004");
@@ -337,8 +356,9 @@ MTImageBrowser.prototype.drawTickMarkLabels = function (direction, width, spacin
 };
 
 // 画刻GuideLine
-MTImageBrowser.prototype.drawGuideLine = function (x, y) {
+MTImageBrowser.prototype.drawGuideLine = function (x_pos, y_pos) {
     var self = this, stroke_color = self._ctx.strokeStyle, fill_color = self._ctx.fillStyle, offset = self._rulerGap + self._rulerWidth / 2 - 2;
+    var x = x_pos + self._zero, y = y_pos + self._zero;
     self._ctx.strokeStyle = "#169FE6";
     self._ctx.fillStyle = "#169FE6";
     self._ctx.beginPath();
@@ -348,10 +368,17 @@ MTImageBrowser.prototype.drawGuideLine = function (x, y) {
     self._ctx.lineTo(self._max_x - self._zero, y);
     self._ctx.stroke();
     // 画标签
-    self._ctx.fillText(x + "", x, self._max_y - self._zero + offset);
-    self._ctx.fillText(y + "", self._max_x - self._zero + 2, y);
+    self._ctx.fillText(x_pos + "", x, self._max_y - self._zero + offset);
+    self._ctx.save();
+    self._ctx.translate(self._zero, self._zero);
+    self._ctx.rotate(- Math.PI / 2);
+    self._ctx.textAlign = "left";
+    self._ctx.fillText(y_pos + "", self._zero - y, self._max_x - self._zero - self._rulerWidth + 2);
+    self._ctx.restore();
+    // 恢复现场
     self._ctx.strokeStyle = stroke_color;
     self._ctx.fillStyle = fill_color;
+    // 保存导航线
     self._guidelines["x"].push(x);
     self._guidelines["y"].push(y);
 };
