@@ -138,14 +138,13 @@ var MTImageBrowser = function (container_id, options) {
     input.accept = "image/*";
     input.style.visibility = "hidden";
     input.onchange = function () {
-        self.load();
+        self.load(50);
     };
     var menus = document.createElement("div");
     menus.className = "mtib_menu";
     var button_01 = generateButton(menus, "打开", function () {input.click();});
     var button_02 = generateButton(menus, "重置", function () {
-        self.clear();
-        self.load();
+        self.load(50);
     });
     var button_03 = generateButton(menus, "保存", function () {self.download();});
     var checkbox = document.createElement("input");
@@ -159,11 +158,10 @@ var MTImageBrowser = function (container_id, options) {
     var label_y = generateLabel(menus, "y: ", "mtib_pos_label");
     canvas.onclick = function (e) {
         if (self._loaded) {
-            var x_pos = parseInt(label_x.innerHTML.replace("x: ", ""));
-            var y_pos = parseInt(label_y.innerHTML.replace("y: ", ""));
-            var max_x = self._max_x - self._zero * 2;
-            var max_y = self._max_y - self._zero * 2;
-            if (x_pos >= 0 && y_pos >= 0 && x_pos <= max_x && y_pos <= max_y) {
+            var x_real = Math.ceil(label_x.innerHTML.replace("x: ", ""));
+            var y_real = Math.ceil(label_y.innerHTML.replace("y: ", ""));
+            var x_pos = Math.ceil(x_real * self._scale_ratio), y_pos = Math.ceil(y_real * self._scale_ratio);
+            if (x_pos >= 0 && y_pos >= 0 && x_pos <= self._image_width && y_pos <= self._image_height) {
                 if (checkbox.checked) {
                     copyTextToClipboard(color_div.innerHTML);
                 } else {
@@ -175,15 +173,12 @@ var MTImageBrowser = function (container_id, options) {
     canvas.onmousemove = function (e) {
         if (self._loaded) {
             var rect = canvas.getBoundingClientRect();
-            var x = e.clientX - rect.left;
-            var y = e.clientY - rect.top;
-            var x_pos = x - self._zero;
-            var y_pos = y - self._zero;
-            var max_x = self._max_x - self._zero * 2;
-            var max_y = self._max_y - self._zero * 2;
-            if (x_pos >= 0 && y_pos >= 0 && x_pos <= max_x && y_pos <= max_y) {
-                label_x.innerHTML = "x: " + x_pos;
-                label_y.innerHTML = "y: " + y_pos;
+            var x = e.clientX - rect.left, y = e.clientY - rect.top;
+            var x_pos = x - self._zero, y_pos = y - self._zero;
+            var x_real = Math.ceil(x_pos / self._scale_ratio), y_real = Math.ceil(y_pos / self._scale_ratio);
+            if (x_pos >= 0 && y_pos >= 0 && x_pos <= self._image_width && y_pos <= self._image_height) {
+                label_x.innerHTML = "x: " + x_real;
+                label_y.innerHTML = "y: " + y_real;
                 var p = self._ctx.getImageData(x * self._pixelRatio, y * self._pixelRatio, 1, 1).data;
                 var hex = "#" + ("000000" + rgbToHex(p[0], p[1], p[2])).slice(-6);
                 color_div.style.backgroundColor = hex;
@@ -215,13 +210,20 @@ var MTImageBrowser = function (container_id, options) {
     self._pixelRatio = window.devicePixelRatio;
     self._ctx = self._canvas.getContext("2d");
     self._loaded = false;
+    self._scale_ratio = 1;
+    self._image_width = 100;
+    self._image_height = 50;
+    self._image_real_width = 100;
+    self._image_real_height = 50;
+    self._menu_min_width = 500;
+    self._tick_mark_unit_min = 10;
+    self._tick_mark_unit = 100;
     self.setSize(100, 50);
 };
 
 MTImageBrowser.prototype.setSize = function (width, height) {
     var self = this;
-    var menu_min_width = 500;
-    var container_width = (width > menu_min_width) ? width : menu_min_width;
+    var container_width = (width > self._menu_min_width) ? width : self._menu_min_width;
     var container_height = height + 40;
     self._container.style.width = container_width + "px";
     self._container.style.height = container_height + "px";
@@ -232,8 +234,8 @@ MTImageBrowser.prototype.setSize = function (width, height) {
 };
 
 // 加载图片
-MTImageBrowser.prototype.load = function () {
-    var self = this;
+MTImageBrowser.prototype.load = function (percentage=100) {
+    var self = this, scale_ratio = percentage / 100.0;
     if (typeof window.FileReader !== "function") {
         niibLogger.warn("0001");
         return;
@@ -251,14 +253,19 @@ MTImageBrowser.prototype.load = function () {
             img.src = src;
             img.onload = function() {
                 // 根据图片尺寸调整画布尺寸，并根据屏幕缩放比恢复画布清晰度
-                var width = img.width + self._zero * 2, height = img.height + self._zero * 2;
+                self._image_real_width = img.width;
+                self._image_real_height = img.height;
+                self._image_width = Math.ceil(img.width * scale_ratio);
+                self._image_height = Math.ceil(img.height * scale_ratio);
+                var width = self._image_width + self._zero * 2, height = self._image_height + self._zero * 2;
                 self._canvas.width = width * self._pixelRatio;
                 self._canvas.height = height * self._pixelRatio;
                 self.setSize(width, height);
                 self._ctx.scale(self._pixelRatio, self._pixelRatio);
-                self._ctx.drawImage(img, self._zero, self._zero);
+                self._ctx.drawImage(img, self._zero, self._zero, self._image_width, self._image_height);
                 url.revokeObjectURL(src);
                 self._loaded = true;
+                self._scale_ratio = scale_ratio;
                 // 绘制标尺
                 var stroke_color = self._ctx.strokeStyle, fill_color = self._ctx.fillStyle;
                 self._ctx.lineWidth= 1;
@@ -266,18 +273,18 @@ MTImageBrowser.prototype.load = function () {
                 self._ctx.fillStyle = "#000";
                 self._ctx.font = "8px Arial";
                 // 水平标尺
-                self.drawTickMarks("H", false, img.width, 5);
-                self.drawTickMarks("H", true, img.width, 50);
+                self.drawTickMarks("H", false, self._image_width, self._tick_mark_unit_min);
+                self.drawTickMarks("H", true, self._image_width, self._tick_mark_unit);
                 // 垂直标尺
-                self.drawTickMarks("V", false, img.height, 5);
-                self.drawTickMarks("V", true, img.height, 50);
+                self.drawTickMarks("V", false, self._image_height, self._tick_mark_unit_min);
+                self.drawTickMarks("V", true, self._image_height, self._tick_mark_unit);
                 // 绘制右下角角标
-                var x_pos_rb = img.width + self._zero, y_pos_rb = img.height + self._zero, offset = self._rulerGap + self._rulerWidth / 2 - 2;
+                var x_pos_rb = self._image_width + self._zero, y_pos_rb = self._image_height + self._zero, offset = self._rulerGap + self._rulerWidth / 2 - 2;
                 self._ctx.beginPath();
                 self._ctx.moveTo(x_pos_rb, y_pos_rb);
                 self._ctx.lineTo(x_pos_rb + self._rulerWidth, y_pos_rb);
                 self._ctx.stroke();
-                self._ctx.fillText(img.width + "", x_pos_rb + 2, self._max_y - self._rulerGap / 2 + 2);
+                self._ctx.fillText(self._image_real_width + "", x_pos_rb + 2, self._max_y - self._rulerGap / 2 + 2);
                 self._ctx.beginPath();
                 self._ctx.moveTo(x_pos_rb, y_pos_rb);
                 self._ctx.lineTo(x_pos_rb, y_pos_rb + self._rulerWidth);
@@ -286,7 +293,7 @@ MTImageBrowser.prototype.load = function () {
                 self._ctx.translate(self._zero, self._zero);
                 self._ctx.rotate(- Math.PI / 2);
                 self._ctx.textAlign = "left";
-                self._ctx.fillText(img.height + "", 2 - img.height, self._max_x - self._zero);
+                self._ctx.fillText(self._image_real_height + "", 2 - self._image_height, self._max_x - self._zero);
                 self._ctx.restore();
                 // 恢复现场
                 self._ctx.strokeStyle = stroke_color;
@@ -308,7 +315,7 @@ MTImageBrowser.prototype.clear = function () {
 
 // 画刻度线
 MTImageBrowser.prototype.drawTickMarks = function (direction, longer, width, spacing) {
-    var self = this, interval = width / spacing, pos = 5;
+    var self = this, interval = width / self._scale_ratio / spacing, pos = 5, tmp;
     if (longer) {
         pos = 0;
         self.drawTickMarkLabels(direction, width, spacing);
@@ -316,15 +323,17 @@ MTImageBrowser.prototype.drawTickMarks = function (direction, longer, width, spa
     if ("H" == direction) {
         for (var i = 0; i <= interval; i++) {
             self._ctx.beginPath();
-            self._ctx.moveTo(self._zero + i * spacing, self._zero);
-            self._ctx.lineTo(self._zero + i * spacing, pos + self._rulerGap);
+            tmp = Math.ceil(self._zero + i * spacing * self._scale_ratio);
+            self._ctx.moveTo(tmp, self._zero);
+            self._ctx.lineTo(tmp, pos + self._rulerGap);
             self._ctx.stroke();
         };
     } else if ("V" == direction) {
         for (var i = 0; i <= interval; i++) {
             self._ctx.beginPath();
-            self._ctx.moveTo(self._zero, self._zero + i * spacing);
-            self._ctx.lineTo(pos + self._rulerGap, self._zero + i * spacing);
+            tmp = Math.ceil(self._zero + i * spacing * self._scale_ratio);
+            self._ctx.moveTo(self._zero, tmp);
+            self._ctx.lineTo(pos + self._rulerGap, tmp);
             self._ctx.stroke();
         };
     };
@@ -332,12 +341,12 @@ MTImageBrowser.prototype.drawTickMarks = function (direction, longer, width, spa
 
 // 画刻度线标签
 MTImageBrowser.prototype.drawTickMarkLabels = function (direction, width, spacing) {
-    var self = this, interval = width / spacing, label, x, y;
+    var self = this, interval = width / self._scale_ratio / spacing, label, x, y;
     if ("H" == direction) {
         y = self._rulerGap + self._rulerWidth / 2 - 2;
         for (var i = 0; i <= interval; i++) {
             label = i * spacing;
-            x = self._zero + i * spacing + 1;
+            x = self._zero + Math.ceil(label * self._scale_ratio) + 1;
             self._ctx.fillText(label + "", x, y);
         };
     } else if ("V" == direction) {
@@ -348,7 +357,7 @@ MTImageBrowser.prototype.drawTickMarkLabels = function (direction, width, spacin
         self._ctx.textAlign = "left";
         for (var i = 0; i <= interval; i++) {
             label = i * spacing;
-            x = i * spacing + 1;
+            x = Math.ceil(label * self._scale_ratio) + 1;
             self._ctx.fillText(label + "", x, y);
         };
         self._ctx.restore();
@@ -359,6 +368,7 @@ MTImageBrowser.prototype.drawTickMarkLabels = function (direction, width, spacin
 MTImageBrowser.prototype.drawGuideLine = function (x_pos, y_pos) {
     var self = this, stroke_color = self._ctx.strokeStyle, fill_color = self._ctx.fillStyle, offset = self._rulerGap + self._rulerWidth / 2 - 2;
     var x = x_pos + self._zero, y = y_pos + self._zero;
+    var x_real = Math.ceil(x_pos / self._scale_ratio), y_real = Math.ceil(y_pos / self._scale_ratio);
     self._ctx.strokeStyle = "#169FE6";
     self._ctx.fillStyle = "#169FE6";
     self._ctx.beginPath();
@@ -368,12 +378,12 @@ MTImageBrowser.prototype.drawGuideLine = function (x_pos, y_pos) {
     self._ctx.lineTo(self._max_x - self._zero, y);
     self._ctx.stroke();
     // 画标签
-    self._ctx.fillText(x_pos + "", x, self._max_y - self._zero + offset);
+    self._ctx.fillText(x_real + "", x, self._max_y - self._zero + offset);
     self._ctx.save();
     self._ctx.translate(self._zero, self._zero);
     self._ctx.rotate(- Math.PI / 2);
     self._ctx.textAlign = "left";
-    self._ctx.fillText(y_pos + "", self._zero - y, self._max_x - self._zero - self._rulerWidth + 2);
+    self._ctx.fillText(y_real + "", self._zero - y, self._max_x - self._zero - self._rulerWidth + 2);
     self._ctx.restore();
     // 恢复现场
     self._ctx.strokeStyle = stroke_color;
