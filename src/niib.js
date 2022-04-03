@@ -128,9 +128,10 @@ function generateLabel (container, default_label, class_name) {
     return label;
 };
 
-var MTImageBrowser = function (container_id, options) {
+var MTImageBrowser = function (container_id, options={}) {
     var self = this;
     self._guidelines = {"x": [], "y": []};
+    self._menu_min_width = 650;
     var container = document.getElementById(container_id);
     var canvas = document.createElement("canvas");
     var input = document.createElement("input");
@@ -138,15 +139,31 @@ var MTImageBrowser = function (container_id, options) {
     input.accept = "image/*";
     input.style.visibility = "hidden";
     input.onchange = function () {
-        self.load(50);
+        self.load(0);
     };
     var menus = document.createElement("div");
     menus.className = "mtib_menu";
     var button_01 = generateButton(menus, "打开", function () {input.click();});
     var button_02 = generateButton(menus, "重置", function () {
-        self.load(50);
+        self.load(0);
     });
     var button_03 = generateButton(menus, "保存", function () {self.download();});
+    var label_range = generateLabel(menus, "100%", "mtib_range_label");
+    var range = document.createElement("input");
+    range.type = "range";
+    range.min = 10;
+    range.max = 100;
+    range.value = 100;
+    range.step = 10;
+    range.onchange = function () {
+        label_range.innerHTML = self._range.value + "%";
+        if (self._loaded) {
+            self.load(self._range.value);
+        };
+    };
+    menus.appendChild(range);
+    self._range = range;
+    self._label_range = label_range;
     var checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     menus.appendChild(checkbox);
@@ -215,7 +232,6 @@ var MTImageBrowser = function (container_id, options) {
     self._image_height = 50;
     self._image_real_width = 100;
     self._image_real_height = 50;
-    self._menu_min_width = 500;
     self._tick_mark_unit_min = 10;
     self._tick_mark_unit = 100;
     self.setSize(100, 50);
@@ -235,7 +251,7 @@ MTImageBrowser.prototype.setSize = function (width, height) {
 
 // 加载图片
 MTImageBrowser.prototype.load = function (percentage=100) {
-    var self = this, scale_ratio = percentage / 100.0;
+    var self = this, scale_ratio = percentage / 100;
     if (typeof window.FileReader !== "function") {
         niibLogger.warn("0001");
         return;
@@ -255,6 +271,22 @@ MTImageBrowser.prototype.load = function (percentage=100) {
                 // 根据图片尺寸调整画布尺寸，并根据屏幕缩放比恢复画布清晰度
                 self._image_real_width = img.width;
                 self._image_real_height = img.height;
+                if (0 == percentage) {
+                    scale_ratio = Math.round(self._menu_min_width / img.width * 10) * 10;
+                    if (scale_ratio > 100) {
+                        scale_ratio = 1;
+                    } else {
+                        self._range.value = scale_ratio;
+                        self._label_range.innerHTML = self._range.value + "%";
+                        scale_ratio = scale_ratio / 100;
+                    };
+                };
+                if (img.width > 200) {
+                    var min_range = Math.round(200 / img.width * 10) * 10;
+                    self._range.min = min_range;
+                } else {
+                    self._range.min = 100;
+                };
                 self._image_width = Math.ceil(img.width * scale_ratio);
                 self._image_height = Math.ceil(img.height * scale_ratio);
                 var width = self._image_width + self._zero * 2, height = self._image_height + self._zero * 2;
