@@ -130,7 +130,7 @@ function generateLabel (container, default_label, class_name) {
 
 var MTImageBrowser = function (container_id, options={}) {
     var self = this;
-    self._guidelines = {"x": [], "y": []};
+    self._guidelines = new Array();
     self._menu_min_width = 650;
     var container = document.getElementById(container_id);
     var canvas = document.createElement("canvas");
@@ -158,7 +158,7 @@ var MTImageBrowser = function (container_id, options={}) {
     range.onchange = function () {
         label_range.innerHTML = self._range.value + "%";
         if (self._loaded) {
-            self.load(self._range.value);
+            self.load(self._range.value, true);
         };
     };
     menus.appendChild(range);
@@ -250,7 +250,7 @@ MTImageBrowser.prototype.setSize = function (width, height) {
 };
 
 // 加载图片
-MTImageBrowser.prototype.load = function (percentage=100) {
+MTImageBrowser.prototype.load = function (percentage=100, restore_flag=false) {
     var self = this, scale_ratio = percentage / 100;
     if (typeof window.FileReader !== "function") {
         niibLogger.warn("0001");
@@ -263,7 +263,7 @@ MTImageBrowser.prototype.load = function (percentage=100) {
         var url = window.URL || window.webkitURL;
         if (url) {
             if (self._loaded) {
-                self.clear();
+                self.clear(restore_flag);
             };
             var img = new Image(), f = self._input.files[0], src = url.createObjectURL(f);
             img.src = src;
@@ -330,6 +330,11 @@ MTImageBrowser.prototype.load = function (percentage=100) {
                 // 恢复现场
                 self._ctx.strokeStyle = stroke_color;
                 self._ctx.fillStyle = fill_color;
+                if (restore_flag) {
+                    for (var i = 0; i < self._guidelines.length; i++) {
+                        self.drawGuideLine(self._guidelines[i][0], self._guidelines[i][1], true);
+                    };
+                };
             };
         } else {
             niibLogger.warn("0004");
@@ -338,11 +343,15 @@ MTImageBrowser.prototype.load = function (percentage=100) {
 };
 
 // 清空画布
-MTImageBrowser.prototype.clear = function () {
+MTImageBrowser.prototype.clear = function (restore_flag=false) {
     var self = this;
     self._ctx.clearRect(0, 0, self._canvas.width, self._canvas.height);
     self._loaded = false;
-    self._guidelines = {"x": [], "y": []};
+    if (restore_flag) {
+        ;
+    } else {
+        self._guidelines = new Array();
+    }
 };
 
 // 画刻度线
@@ -397,10 +406,16 @@ MTImageBrowser.prototype.drawTickMarkLabels = function (direction, width, spacin
 };
 
 // 画刻GuideLine
-MTImageBrowser.prototype.drawGuideLine = function (x_pos, y_pos) {
+MTImageBrowser.prototype.drawGuideLine = function (x_pos, y_pos, restore_flag = false) {
     var self = this, stroke_color = self._ctx.strokeStyle, fill_color = self._ctx.fillStyle, offset = self._rulerGap + self._rulerWidth / 2 - 2;
     var x = x_pos + self._zero, y = y_pos + self._zero;
     var x_real = Math.ceil(x_pos / self._scale_ratio), y_real = Math.ceil(y_pos / self._scale_ratio);
+    if (restore_flag) {
+        x = Math.ceil(x_pos * self._scale_ratio) + self._zero;
+        y = Math.ceil(y_pos * self._scale_ratio) + self._zero;
+        x_real = x_pos;
+        y_real = y_pos;
+    };
     self._ctx.strokeStyle = "#169FE6";
     self._ctx.fillStyle = "#169FE6";
     self._ctx.beginPath();
@@ -420,9 +435,12 @@ MTImageBrowser.prototype.drawGuideLine = function (x_pos, y_pos) {
     // 恢复现场
     self._ctx.strokeStyle = stroke_color;
     self._ctx.fillStyle = fill_color;
-    // 保存导航线
-    self._guidelines["x"].push(x);
-    self._guidelines["y"].push(y);
+    if (restore_flag) {
+        ;
+    } else {
+        // 保存导航线
+        self._guidelines.push([x_real, y_real]);
+    }
 };
 
 // 保存图片
