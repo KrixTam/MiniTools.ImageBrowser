@@ -238,13 +238,17 @@ var MTImageBrowser = function (container_id, options={}) {
 };
 
 MTImageBrowser.prototype.setSize = function (width, height) {
-    var self = this;
-    var container_width = (width > self._menu_min_width) ? width : self._menu_min_width;
-    var container_height = height + 40;
+    var self = this, space = 10, menu_height = 40, min_width = self._menu_min_width + space;
+    var canvas_width = width + space, canvas_height = height + space;
+    var container_width = (canvas_width > min_width) ? canvas_width : min_width;
+    var container_height = height + menu_height + space;
+    self._canvas.width = canvas_width * self._pixelRatio;
+    self._canvas.height = canvas_height * self._pixelRatio;
+    self._ctx.scale(self._pixelRatio, self._pixelRatio);
     self._container.style.width = container_width + "px";
     self._container.style.height = container_height + "px";
-    self._canvas.style.width = width + "px";
-    self._canvas.style.height = height + "px";
+    self._canvas.style.width = canvas_width + "px";
+    self._canvas.style.height = canvas_height + "px";
     self._max_x = width;
     self._max_y = height;
 };
@@ -290,10 +294,7 @@ MTImageBrowser.prototype.load = function (percentage=100, restore_flag=false) {
                 self._image_width = Math.ceil(img.width * scale_ratio);
                 self._image_height = Math.ceil(img.height * scale_ratio);
                 var width = self._image_width + self._zero * 2, height = self._image_height + self._zero * 2;
-                self._canvas.width = width * self._pixelRatio;
-                self._canvas.height = height * self._pixelRatio;
                 self.setSize(width, height);
-                self._ctx.scale(self._pixelRatio, self._pixelRatio);
                 self._ctx.drawImage(img, self._zero, self._zero, self._image_width, self._image_height);
                 url.revokeObjectURL(src);
                 self._loaded = true;
