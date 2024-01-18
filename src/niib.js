@@ -24,12 +24,12 @@ function fallbackCopyTextToClipboard (text) {
         var successful = document.execCommand('copy');
         result = successful ? true : false;
         if (result) {
-            niibLogger.warn("0005");
+            MTIBLogger.warn("0005");
         } else {
-            niibLogger.warn("0006");
+            MTIBLogger.warn("0006");
         };
     } catch (err) {
-        niibLogger.warn("0006", {"异常信息": err});
+        MTIBLogger.warn("0006", {"异常信息": err});
     };
 
     document.body.removeChild(textArea);
@@ -41,10 +41,10 @@ function copyTextToClipboard (text) {
         return fallbackCopyTextToClipboard(text);
     }
     navigator.clipboard.writeText(text).then(function () {
-        niibLogger.warn("0007");
+        MTIBLogger.warn("0007");
         return true;
     }, function (err) {
-        niibLogger.warn("0008", {"异常信息": err});
+        MTIBLogger.warn("0008", {"异常信息": err});
         return false;
     });
 };
@@ -110,7 +110,7 @@ var err_codes = {
     },
 };
 
-var niibLogger = new MTLogger(err_codes);
+var MTIBLogger = new MTLogger(err_codes);
 
 function generateButton (container, label, callback) {
     var button = document.createElement("button");
@@ -257,12 +257,12 @@ MTImageBrowser.prototype.setSize = function (width, height) {
 MTImageBrowser.prototype.load = function (percentage=100, restore_flag=false) {
     var self = this, scale_ratio = percentage / 100;
     if (typeof window.FileReader !== "function") {
-        niibLogger.warn("0001");
+        MTIBLogger.warn("0001");
         return;
     } else if (!self._input.files) {
-        niibLogger.warn("0002");
+        MTIBLogger.warn("0002");
     } else if (!self._input.files[0]) {
-        niibLogger.warn("0003");
+        MTIBLogger.warn("0003");
     } else {
         var url = window.URL || window.webkitURL;
         if (url) {
@@ -338,7 +338,7 @@ MTImageBrowser.prototype.load = function (percentage=100, restore_flag=false) {
                 };
             };
         } else {
-            niibLogger.warn("0004");
+            MTIBLogger.warn("0004");
         };
     };
 };
